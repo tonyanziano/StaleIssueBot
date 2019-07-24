@@ -16,12 +16,14 @@ let options = {
   body: undefined
 };
 
-const body = JSON.stringify({ query: `{ repository(owner:"microsoft", name:"BotFramework-Emulator"){ issues(last:20, states:OPEN) { edges { node { title } } } } }` });
+const lastCommentWithDate = `comments(last:1) { edges { node { updatedAt } } }`;
+
+const body = JSON.stringify({ query: `{ repository(owner:"microsoft", name:"BotFramework-Emulator"){ issues(first:100, labels:"pending-update", states:OPEN) { edges { node { title ${lastCommentWithDate} } } } } }` });
 options.body = body;
-console.log(options);
 
 // 1. check github for issues with "pending (?)" tag
 fetch(GH_ENDPOINT, options).then(r => r.json()).then(json => {
+  console.log(json);
   const edges = json.data.repository.issues.edges;
   edges.forEach(edge => console.log(edge.node));
 });
