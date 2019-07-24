@@ -1,5 +1,6 @@
 require('dotenv').config()
 const fetch = require('node-fetch');
+const { appendFileSync } = require('fs');
 
 // lets make a graphql query!
 const GH_TOKEN = process.env.GH_TOKEN || '';
@@ -11,6 +12,7 @@ const REPO_OWNER = 'tonyanziano';
 const REPO = 'StaleIssueBot';
 const STALE_TIME_THRESHOLD = 1000 * 60; // 10 minutes
 const STALE_LABEL = 'pending-update'; // label used to mark an issue for staleness tracking
+const STALENESS_COMMENT = `Closing due to inactivity. It\'s been longer than ${STALE_TIME_THRESHOLD} since this post was marked with the ${STALE_LABEL} label. Feel free to re-open the issue.`;
 
 let options = {
   method: 'POST',
@@ -25,7 +27,29 @@ let options = {
 // grabs the id and most recent update time of the last comment in an issue
 const lastCommentWithDateQuery = `comments(last:1) { edges { node { id updatedAt } } }`;
 // grabs all the issues associated with the staleness label
-const rootQuery = JSON.stringify({ query: `{ repository(owner:"${REPO_OWNER}", name:"${REPO}") { labels(first:1, query:"${STALE_LABEL}") { edges { node { id issues(first:100, labels:"${STALE_LABEL}", states:OPEN) { edges { node { id title ${lastCommentWithDateQuery} } } } } } } }}`})
+//const rootQuery = JSON.stringify({ query: `{ repository(owner:"${REPO_OWNER}", name:"${REPO}") { labels(first:1, query:"${STALE_LABEL}") { edges { node { id issues(first:100, labels:"${STALE_LABEL}", states:OPEN) { edges { node { id title ${lastCommentWithDateQuery} } } } } } } }}`})
+const rootQuery = JSON.stringify({
+  query: 
+    `{
+      repository(owner:"${REPO_OWNER}", name:"${REPO}") {
+        labels(first:1, query:"${STALE_LABEL}") {
+          edges {
+            node {
+              id 
+              issues(first:100, labels:"${STALE_LABEL}", states:OPEN) {
+                edges {
+                  node {
+                    id 
+                    title
+                    ${lastCommentWithDateQuery}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }` });
 options.body = rootQuery;
 
 // check github for issues with pending tag
@@ -60,13 +84,16 @@ fetch(GH_ENDPOINT, options).then(r => r.json()).then(json => {
       // go through stale issues and comment on them, remove the staleness label, and close them
       for (let i = 0; i < staleIssues.length; i++) {
         const issueId = staleIssues[i];
-        const stalenessComment = `Closing due to inactivity. It\'s been longer than ${STALE_TIME_THRESHOLD} since this post was marked with the ${STALE_LABEL} label. Feel free to re-open the issue.`;
-        const commentQuery = `addComment(input: { subjectId:"${issueId}", body:"${stalenessComment}" }) { clientMutationId }`;
+        // adds a comment explaining why we are closing the issue
+        const commentQuery = `addComment(input: { subjectId:"${issueId}", body:"${STALENESS_COMMENT}" }) { clientMutationId }`;
+        // removes the label that marked the issue for staleness tracking
         const removeStaleLabelQuery = `removeLabelsFromLabelable(input: { labelIds:["${staleLabelId}"], labelableId:"${issueId}" }) { clientMutationId }`;
+        // closes the issue
         const closeIssueQuery = `closeIssue(input: { issueId:"${issueId}" }) { issue { id } }`;
-        const wholeQuery = JSON.stringify({ query: `mutation HandleStaleIssue { ${commentQuery} ${removeStaleLabelQuery} ${closeIssueQuery} }` });
 
+        const wholeQuery = JSON.stringify({ query: `mutation HandleStaleIssue { ${commentQuery} ${removeStaleLabelQuery} ${closeIssueQuery} }` });
         options.body = wholeQuery;
+
         fetch(GH_ENDPOINT, options).then(r => r.json()).then(json => {
           console.log(json);
         });
