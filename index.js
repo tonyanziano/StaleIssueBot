@@ -1,6 +1,7 @@
 require('dotenv').config()
 const fetch = require('node-fetch');
-const { appendFileSync } = require('fs');
+
+const { writeToLog } = require('./utils/writeToLog');
 
 // constants
 const GH_TOKEN = process.env.GH_TOKEN || '';
@@ -19,6 +20,8 @@ const fetchOptions = {
 // main function
 async function run(options) {
   const {
+    locale = 'en-US', // locale for log timestamps
+    logFilePath = '', // path to file to use for logging
     repo = '', // repo name
     repoOwner = '', // repo owner
     staleTimeThreshold = 1000 * 60 * 60 * 24 * 7, // 7 days
@@ -26,7 +29,10 @@ async function run(options) {
     stalenessComment = '' // comment to leave before closing the issue
   } = options;
 
-  // create query
+  // query that fetches:
+  //   1. the label associated with staleness
+  //   2. the first 100 issues that are tagged with the label
+  //   3. the last comment of each issue and its last updated time
   const rootQuery = JSON.stringify({
     query: 
       `{
@@ -61,9 +67,8 @@ async function run(options) {
   fetchOptions.body = rootQuery;
   
   // initialize log entry
-  // TODO: make log location configurable
-  appendFileSync('stale-issue-bot-log.txt', `\n--- START RUN: ${new Date().toLocaleString('en-US')} ---\n`);
-  appendFileSync('stale-issue-bot-log.txt', `\nThe following stale issues were closed:\n`);
+  writeToLog(logFilePath, `\n--- START RUN: ${new Date().toLocaleString(locale)} ---\n`);
+  writeToLog(logFilePath, `\nThe following stale issues were closed:\n`);
 
   try {
     let staleIssues = [];
@@ -98,7 +103,7 @@ async function run(options) {
           staleIssues.push(issue.node.id);
           // log which issues were marked as stale
           // TODO: construct link to the issue that was marked and put it in the log
-          appendFileSync('stale-issue-bot-log.txt', `\n\t${staleIssues.length}: ${issue.node.title}\n`);
+          writeToLog(logFilePath, `\n\t${staleIssues.length}: ${issue.node.title}\n`);
         }
       }
   
@@ -121,13 +126,13 @@ async function run(options) {
     }
 
     if (!staleIssues.length) {
-      appendFileSync('stale-issue-bot-log.txt', `\n\tNo stale issues were detected.\n`);
+      writeToLog(logFilePath, `\n\tNo stale issues were detected.\n`);
     }
   } catch (e) {
     console.log('There was an error: ', e);
   }
   
-  appendFileSync('stale-issue-bot-log.txt', `\n--- END OF RUN ---\n`);
+  writeToLog(logFilePath, `\n--- END OF RUN ---\n`);
 }
 
 // example run
@@ -139,4 +144,4 @@ run({
   stalenessComment: 'Closing due to inactivity...'
 })
 .then(_res => console.log('Success!'))
-.catch(err => console.log('Failure! ', err));
+.catch(err => console.log('Failure: ', err));
