@@ -1,5 +1,6 @@
 require('dotenv').config()
 const fetch = require('node-fetch');
+const { join } = require('path');
 
 const { writeToLog } = require('./utils/writeToLog');
 
@@ -137,6 +138,7 @@ async function run(options) {
 
 // example run
 run({
+  logFilePath: join(__dirname, 'stale-issues-log.txt'),
   repo: 'StaleIssueBot',
   repoOwner: 'tonyanziano',
   staleTimeThreshold: 1000 * 60 * 5,

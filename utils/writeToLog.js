@@ -1,7 +1,7 @@
-const { appendFileSync, existsSync } = require('fs');
+const { appendFileSync } = require('fs');
 
 function writeToLog(path, content) {
-  if (!path || !existsSync(path)) {
+  if (!path) {
     return;
   }
   try {
